@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
@@ -13,12 +11,10 @@
 # testing
 /coverage
 
-# next.js
+# Next.js
 /.next/
 /out/
-
-# production
-/build
+build
 
 # misc
 .DS_Store
@@ -30,12 +26,26 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# Environment files – NEVER commit these
 .env*
+*.env
 
-# vercel
+# Database & SQL migrations – you leaked dozens of these
+*.sql
+migration_*.sql
+migrations/
+prisma/*.db
+prisma/dev.db
+
+# Vercel
 .vercel
 
-# typescript
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
