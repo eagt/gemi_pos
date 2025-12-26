@@ -95,7 +95,7 @@ export async function createShop(name: string, businessType: 'quick_checkout' | 
                 .insert({
                     shop_id: shop.id,
                     user_id: user.id,
-                    role: 'manager',
+                    restaurant_role: 'manager',
                     name: user.user_metadata?.full_name || 'Manager',
                     email: user.email,
                     accepted_at: new Date().toISOString() // Active immediately
@@ -110,7 +110,7 @@ export async function createShop(name: string, businessType: 'quick_checkout' | 
                 .insert({
                     shop_id: shop.id,
                     user_id: user.id,
-                    role: 'manager', // Required by DB constraint, even for QC
+                    restaurant_role: 'waiter', // Default placeholder
                     quick_checkout_role: 'administrator', // Owner gets full access
                     name: user.user_metadata?.full_name || 'Administrator',
                     email: user.email,

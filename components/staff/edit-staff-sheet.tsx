@@ -33,22 +33,42 @@ import { StaffRole } from '@/lib/types/database.types'
 import { updateStaffRole, deactivateStaffMember } from '../../app/dashboard/shops/[shopId]/settings/staff/actions'
 import { toast } from 'sonner'
 
+// Add role descriptions
+const roleDescriptions: Record<string, string> = {
+    // Quick Checkout roles
+    manager: 'Full Access',
+    administrator: 'Full Access',
+    supervisor: 'Sales & Management',
+    cashier: 'Sales & Service',
+
+    // Restaurant roles
+    waiter: 'Orders & Payments',
+    chef: 'Kitchen Orders',
+    runner: 'Table Service',
+}
+
 interface EditStaffSheetProps {
     staff: {
         id: string
         name: string
-        role: string
+        restaurant_role: string
+        quick_checkout_role?: string | null
         email: string | null
     } | null
     shopId: string
-    businessType: string
+    businessType: 'quick_checkout' | 'table_order'
     open: boolean
     onOpenChange: (open: boolean) => void
     onUpdate?: () => void
 }
 
 export function EditStaffSheet({ staff, shopId, businessType, open, onOpenChange, onUpdate }: EditStaffSheetProps) {
-    const [selectedRole, setSelectedRole] = useState<StaffRole>(staff?.role as StaffRole || 'waiter')
+    // Determine effective current role
+    const effectiveRole = staff
+        ? (businessType === 'quick_checkout' ? (staff.quick_checkout_role || staff.restaurant_role) : staff.restaurant_role)
+        : (businessType === 'table_order' ? 'waiter' : 'cashier')
+
+    const [selectedRole, setSelectedRole] = useState<string>(effectiveRole)
     const [loading, setLoading] = useState(false)
     const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false)
     const [deactivating, setDeactivating] = useState(false)
@@ -56,15 +76,18 @@ export function EditStaffSheet({ staff, shopId, businessType, open, onOpenChange
     // Update selectedRole when staff changes
     useEffect(() => {
         if (staff) {
-            setSelectedRole(staff.role as StaffRole)
+            const role = businessType === 'quick_checkout'
+                ? (staff.quick_checkout_role || staff.restaurant_role)
+                : staff.restaurant_role
+            setSelectedRole(role)
         }
-    }, [staff?.id]) // Only update when staff ID changes
+    }, [staff, businessType])
 
     const handleSaveRole = async () => {
         if (!staff) return
         setLoading(true)
         try {
-            await updateStaffRole(shopId, staff.id, selectedRole)
+            await updateStaffRole(shopId, staff.id, selectedRole, businessType)
             toast.success('Role updated successfully!')
             onUpdate?.()
             onOpenChange(false)
@@ -91,18 +114,10 @@ export function EditStaffSheet({ staff, shopId, businessType, open, onOpenChange
         }
     }
 
-    // Determine available roles based on business type
-    const availableRoles: { value: StaffRole; label: string }[] = businessType === 'table_order'
-        ? [
-            { value: 'manager', label: 'Manager' },
-            { value: 'waiter', label: 'Waiter' },
-            { value: 'chef', label: 'Chef' },
-            { value: 'runner', label: 'Runner' },
-        ]
-        : [
-            { value: 'manager', label: 'Manager' },
-            { value: 'waiter', label: 'Cashier' },
-        ]
+    // Determine available roles based on business type (Alphabetical order)
+    const availableRoles = businessType === 'table_order'
+        ? ['chef', 'manager', 'runner', 'waiter']
+        : ['administrator', 'cashier', 'manager', 'supervisor']
 
     if (!staff) return null
 
@@ -129,21 +144,26 @@ export function EditStaffSheet({ staff, shopId, businessType, open, onOpenChange
                             </p>
                             <div className="space-y-2">
                                 <Label htmlFor="role">Role</Label>
-                                <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as StaffRole)}>
-                                    <SelectTrigger>
+                                <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v)}>
+                                    <SelectTrigger className="h-12 bg-white">
                                         <SelectValue placeholder="Select a role" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {availableRoles.map((role) => (
-                                            <SelectItem key={role.value} value={role.value}>
-                                                {role.label}
+                                        {availableRoles.map((r) => (
+                                            <SelectItem key={r} value={r} textValue={r} className="py-2 cursor-pointer">
+                                                <div className="flex flex-col items-start gap-0.5">
+                                                    <span className="font-semibold capitalize text-slate-900">{r}</span>
+                                                    <span className="text-xs text-slate-500 font-normal">
+                                                        {roleDescriptions[r] || 'Staff member'}
+                                                    </span>
+                                                </div>
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                                 <Button
                                     onClick={handleSaveRole}
-                                    disabled={loading || selectedRole === staff.role}
+                                    disabled={loading || selectedRole === (businessType === 'quick_checkout' ? (staff.quick_checkout_role || staff.restaurant_role) : staff.restaurant_role)}
                                     className="w-full mt-2"
                                     style={{ backgroundColor: '#9333EA' }}
                                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7E22CE'}

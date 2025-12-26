@@ -60,7 +60,7 @@ export default function PendingInvitationsPage() {
                 {invitations.length > 0 ? (
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                         {invitations.map((invite) => {
-                            const role = invite.quick_checkout_role || invite.role
+                            const role = invite.quick_checkout_role || invite.restaurant_role
                             const shopId = invite.shops?.id
 
                             return (

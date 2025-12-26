@@ -36,7 +36,7 @@ export async function inviteStaff(shopId: string, name: string, email: string, r
             shop_id: shopId,
             user_id: userId,
             name: name.trim(),
-            role,
+            restaurant_role: role as any,
             accepted_at: null,
             is_active: true
         })

@@ -14,7 +14,8 @@ interface StaffSessionContextType {
     logout: () => void
     staff: {
         id: string
-        role: string
+        restaurantRole: string
+        quickCheckoutRole?: string | null
         name: string
     } | null
 }
@@ -126,7 +127,8 @@ export function StaffSessionProvider({ children, businessType }: StaffSessionPro
         logout: handleLogout,
         staff: session ? {
             id: session.staffId,
-            role: session.role,
+            restaurantRole: session.restaurantRole,
+            quickCheckoutRole: session.quickCheckoutRole,
             name: session.name
         } : null
     }

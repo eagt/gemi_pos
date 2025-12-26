@@ -28,9 +28,23 @@ export async function getStaffList(shopId: string) {
 }
 
 // INVITE STAFF — sends invitation + creates shop_staff entry
-export async function inviteStaff(shopId: string, name: string, email: string, role: string, inviterStaffId?: string) {
+// INVITE STAFF — sends invitation + creates shop_staff entry
+export async function inviteStaff(
+    shopId: string,
+    name: string,
+    email: string,
+    role: string,
+    inviterStaffId?: string,
+    businessType: 'quick_checkout' | 'table_order' = 'table_order'
+) {
     const client = createServiceRoleClient()
 
+    // ... (rest of user creation logic) ... (Use a view_file range to skip unchanged parts if possible, but simpler to just replace logic block)
+    // Actually, I'll use multi_replace for signature and insert block.
+    // Since I'm using replace_file_content, I need to be careful.
+    // I will replace the function start and the insert block.
+
+    // START OF FUNCTION REPLACEMENT
     // Query profiles table instead of RPC
     const { data: profile } = await client
         .from('profiles')
@@ -54,7 +68,7 @@ export async function inviteStaff(shopId: string, name: string, email: string, r
         })
 
         if (error) {
-            // If user exists in Auth but was not found in profiles (Zombie user), find them and recover
+            // ... (keep exact existing user recovery logic)
             if (error.code === 'email_exists' || error.message?.includes('already been registered')) {
                 console.log('[inviteStaff] User exists in Auth but not Profiles. Recovering...')
                 const { data: { users } } = await client.auth.admin.listUsers({ perPage: 1000 })
@@ -62,7 +76,6 @@ export async function inviteStaff(shopId: string, name: string, email: string, r
 
                 if (existingUser) {
                     userId = existingUser.id
-                    // We found them, so they are an "existing user" effectively
                     tempPassword = null
                 } else {
                     console.error('[inviteStaff] Email exists but could not find in listUsers')
@@ -76,19 +89,14 @@ export async function inviteStaff(shopId: string, name: string, email: string, r
             userId = newUser.user.id
         }
 
-        // Ensure profile exists (idempotent upsert)
-        const { error: profileError } = await client.from('profiles').upsert({
+        // Ensure profile exists
+        await client.from('profiles').upsert({
             id: userId,
             email: email.trim().toLowerCase(),
             full_name: name,
             has_temporary_password: true,
             updated_at: new Date().toISOString()
         }, { onConflict: 'id' })
-
-        if (profileError) {
-            console.error('[inviteStaff] Profile upsert error:', profileError)
-            // Continue anyway, strictly speaking profile isn't 100% required for staff link, but good to have
-        }
     }
 
     // Check if already staff
@@ -120,13 +128,24 @@ export async function inviteStaff(shopId: string, name: string, email: string, r
         }
     }
 
+    // Determine roles for DB insertion
+    let rRole = 'waiter' // Default restaurant role
+    let qcRole = null
+
+    if (businessType === 'quick_checkout') {
+        qcRole = role
+    } else {
+        rRole = role
+    }
+
     const { error: insertError } = await client
         .from('shop_staff')
         .insert({
             shop_id: shopId,
             user_id: userId,
             name: name.trim(),
-            role,
+            restaurant_role: rRole,
+            quick_checkout_role: qcRole,
             accepted_at: null,
             is_active: true,
             invited_by: inviterId
@@ -146,11 +165,19 @@ export async function inviteStaff(shopId: string, name: string, email: string, r
         }
     }
 
+
+
     return { existingUser: true }
 }
 
 // Optional — keep if used elsewhere
-export async function updateStaffRole(shopId: string, staffId: string, newRole: string) {
+// Optional — keep if used elsewhere
+export async function updateStaffRole(
+    shopId: string,
+    staffId: string,
+    newRole: string,
+    businessType: 'quick_checkout' | 'table_order' = 'table_order'
+) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Unauthorized' }
@@ -164,22 +191,29 @@ export async function updateStaffRole(shopId: string, staffId: string, newRole: 
 
     const { data: currentUserStaff } = await supabase
         .from('shop_staff')
-        .select('role')
+        .select('restaurant_role, quick_checkout_role')
         .eq('shop_id', shopId)
         .eq('user_id', user.id)
         .single()
 
     const isOwner = shop?.owner_id === user.id
-    const isManager = currentUserStaff?.role === 'manager'
+    const isManager = currentUserStaff?.restaurant_role === 'manager' || currentUserStaff?.quick_checkout_role === 'manager'
 
     if (!isOwner && !isManager) {
         return { error: 'Permission denied' }
     }
 
-    // Update the role
+    // Update the role based on business type
+    let updatePayload = {}
+    if (businessType === 'quick_checkout') {
+        updatePayload = { quick_checkout_role: newRole }
+    } else {
+        updatePayload = { restaurant_role: newRole }
+    }
+
     const { error } = await supabase
         .from('shop_staff')
-        .update({ role: newRole })
+        .update(updatePayload)
         .eq('id', staffId)
         .eq('shop_id', shopId)
 
@@ -204,13 +238,13 @@ export async function deactivateStaffMember(shopId: string, staffId: string) {
 
     const { data: currentUserStaff } = await supabase
         .from('shop_staff')
-        .select('role')
+        .select('restaurant_role, quick_checkout_role')
         .eq('shop_id', shopId)
         .eq('user_id', user.id)
         .single()
 
     const isOwner = shop?.owner_id === user.id
-    const isManager = currentUserStaff?.role === 'manager'
+    const isManager = currentUserStaff?.restaurant_role === 'manager' || currentUserStaff?.quick_checkout_role === 'manager'
 
     if (!isOwner && !isManager) {
         return { error: 'Permission denied' }

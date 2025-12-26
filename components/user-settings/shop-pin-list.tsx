@@ -11,6 +11,7 @@ import { ChangePinModal } from './change-pin-modal'
 interface ShopPin {
     shopId: string
     shopName: string
+    role: string
     hasPin: boolean
 }
 
@@ -27,7 +28,7 @@ export function ShopPinList() {
     const loadPins = async () => {
         try {
             const data = await getUserShopPins()
-            setPins(data)
+            setPins(data as any)
         } catch (error) {
             console.error('Failed to load shop PINs', error)
         } finally {
@@ -70,6 +71,7 @@ export function ShopPinList() {
                         <thead className="bg-slate-50 border-b">
                             <tr>
                                 <th className="h-10 px-4 text-left font-medium text-slate-500">Shop Name</th>
+                                <th className="h-10 px-4 text-left font-medium text-slate-500">Role</th>
                                 <th className="h-10 px-4 text-left font-medium text-slate-500">Current PIN</th>
                                 <th className="h-10 px-4 text-right font-medium text-slate-500">Action</th>
                             </tr>
@@ -83,9 +85,14 @@ export function ShopPinList() {
                                             {shop.shopName}
                                         </div>
                                     </td>
+                                    <td className="p-4 uppercase">
+                                        <Badge variant="secondary" className="font-semibold text-[10px] tracking-wider bg-slate-100 text-slate-700 border-none">
+                                            {shop.role}
+                                        </Badge>
+                                    </td>
                                     <td className="p-4">
                                         {shop.hasPin ? (
-                                            <div className="flex items-center gap-1 text-slate-600 font-mono">
+                                            <div className="flex items-center gap-1 text-slate-600 font-mono text-lg">
                                                 <span>•</span><span>•</span><span>•</span><span>•</span>
                                             </div>
                                         ) : (
@@ -99,6 +106,7 @@ export function ShopPinList() {
                                             variant="outline"
                                             size="sm"
                                             onClick={() => handleOpenModal(shop)}
+                                            className="rounded-lg border-slate-200 hover:bg-slate-50"
                                         >
                                             {shop.hasPin ? 'Change PIN' : 'Set PIN'}
                                         </Button>
@@ -107,7 +115,7 @@ export function ShopPinList() {
                             ))}
                             {pins.length === 0 && (
                                 <tr>
-                                    <td colSpan={3} className="p-8 text-center text-slate-500">
+                                    <td colSpan={4} className="p-8 text-center text-slate-500">
                                         You don't belong to any shops yet.
                                     </td>
                                 </tr>

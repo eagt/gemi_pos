@@ -62,7 +62,7 @@ export function PinSetupDialog({ open, staffName, onComplete, onCancel }: PinSet
                     </DialogTitle>
                     <DialogDescription className="text-center">
                         {step === 'create'
-                            ? `Welcome, ${staffName}! Please create a 4-digit PIN to secure your account.`
+                            ? <span>Welcome, <span className="capitalize">{staffName}</span>! Please create a 4-digit PIN to secure your account.</span>
                             : 'Please enter your PIN again to confirm.'
                         }
                     </DialogDescription>

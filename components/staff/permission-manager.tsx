@@ -14,7 +14,7 @@ interface PermissionManagerProps {
     shopId: string
     staffId: string
     staffName: string
-    role: string
+    restaurantRole: string
     quickCheckoutRole: string | null
     businessType: 'quick_checkout' | 'table_order'
     permissionOverrides: Record<string, boolean> | null
@@ -25,7 +25,7 @@ export function PermissionManager({
     shopId,
     staffId,
     staffName,
-    role,
+    restaurantRole,
     quickCheckoutRole,
     businessType,
     permissionOverrides,
@@ -37,14 +37,14 @@ export function PermissionManager({
             return permissionOverrides[MANAGE_PRODUCTS_PERMISSION]
         }
         // Otherwise use default
-        return getDefaultPermissionState(businessType, role, quickCheckoutRole, MANAGE_PRODUCTS_PERMISSION)
+        return getDefaultPermissionState(businessType, restaurantRole, quickCheckoutRole, MANAGE_PRODUCTS_PERMISSION)
     })
 
     const [saving, setSaving] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
 
-    const defaultState = getDefaultPermissionState(businessType, role, quickCheckoutRole, MANAGE_PRODUCTS_PERMISSION)
-    const canToggle = canTogglePermission(businessType, role, quickCheckoutRole, MANAGE_PRODUCTS_PERMISSION)
+    const defaultState = getDefaultPermissionState(businessType, restaurantRole, quickCheckoutRole, MANAGE_PRODUCTS_PERMISSION)
+    const canToggle = canTogglePermission(businessType, restaurantRole, quickCheckoutRole, MANAGE_PRODUCTS_PERMISSION)
     const isDisabled = !canManage || !canToggle
 
     const handleToggle = (checked: boolean) => {

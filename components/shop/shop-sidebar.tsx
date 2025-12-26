@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Store, Package, ShoppingCart, Settings, Bell, BarChart3, User, LogOut, LayoutGrid, X, Users } from 'lucide-react'
+import { Store, Package, ShoppingCart, Settings, Bell, BarChart3, User, LogOut, LayoutGrid, X, Users, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -19,21 +19,24 @@ interface ShopSidebarProps {
         lowStock: number
     }
     userRole?: string | null
+    restaurantRole?: string | null
     quickCheckoutRole?: string | null
 }
 
-export function ShopSidebar({ shopId, shopName = 'SimplePOS', businessType, alertCounts, userRole: propUserRole, quickCheckoutRole: propQuickCheckoutRole }: ShopSidebarProps) {
+export function ShopSidebar({ shopId, shopName = 'SimplePOS', businessType, alertCounts, restaurantRole: propRestaurantRole, quickCheckoutRole: propQuickCheckoutRole }: ShopSidebarProps) {
     const pathname = usePathname()
     const router = useRouter()
     const supabase = createClient()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const [hasSupabaseSession, setHasSupabaseSession] = useState(false)
+    const [pendingNotificationsCount, setPendingNotificationsCount] = useState(0)
 
     const staffSession = useStaffStore((state) => state.session)
 
     // Use roles from props (server-side) or store (client-side staff login)
-    const userRole = propUserRole || staffSession?.role
-    const quickCheckoutRole = propQuickCheckoutRole || staffSession?.quickCheckoutRole
+    // Priority: Clocked-in staff (cookie/store) > Master account (auth)
+    const restaurantRole = staffSession ? staffSession.restaurantRole : propRestaurantRole
+    const quickCheckoutRole = staffSession ? staffSession.quickCheckoutRole : propQuickCheckoutRole
 
     // Check if user has a Supabase auth session (not just PIN login)
     useEffect(() => {
@@ -50,6 +53,43 @@ export function ShopSidebar({ shopId, shopName = 'SimplePOS', businessType, aler
 
         return () => subscription.unsubscribe()
     }, [supabase])
+
+    // Real-time listener for Clock-in Requests
+    useEffect(() => {
+        const fetchPendingCount = async () => {
+            const { count } = await supabase
+                .from('clock_in_requests')
+                .select('*', { count: 'exact', head: true })
+                .eq('shop_id', shopId)
+                .eq('status', 'pending')
+                .eq('is_dismissed', true)
+
+            setPendingNotificationsCount(count || 0)
+        }
+
+        fetchPendingCount()
+
+        // Subscribe to changes in clock_in_requests
+        const channel = supabase
+            .channel('sidebar_notifications')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'clock_in_requests',
+                    filter: `shop_id=eq.${shopId}`
+                },
+                () => {
+                    fetchPendingCount()
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [supabase, shopId])
 
     const handleLogout = async () => {
         // Clock out from current shop only (soft logout)
@@ -78,14 +118,17 @@ export function ShopSidebar({ shopId, shopName = 'SimplePOS', businessType, aler
         },
         { href: `/dashboard/shops/${shopId}/products`, label: 'Products', icon: Package },
         { href: `/dashboard/shops/${shopId}/analytics`, label: 'Analytics', icon: BarChart3 },
-        ...((businessType === 'table_order' && userRole === 'manager') || (businessType === 'quick_checkout' && quickCheckoutRole === 'administrator') ? [
+        ...((businessType === 'table_order' && restaurantRole === 'manager') || (businessType === 'quick_checkout' && (quickCheckoutRole === 'administrator' || quickCheckoutRole === 'manager')) ? [
             { href: `/dashboard/shops/${shopId}/settings`, label: 'Business Settings', icon: Settings }
         ] : []),
-        ...(businessType === 'quick_checkout' && (quickCheckoutRole === 'administrator' || quickCheckoutRole === 'manager') ? [
-            { href: `/dashboard/shops/${shopId}/staff-qc`, label: 'Staff', icon: Users }
-        ] : []),
-        ...(businessType === 'table_order' && userRole === 'manager' ? [
-            { href: `/dashboard/shops/${shopId}/settings/staff`, label: 'Staff', icon: Users }
+        ...((businessType === 'table_order' && restaurantRole === 'manager') || (businessType === 'quick_checkout' && (quickCheckoutRole === 'administrator' || quickCheckoutRole === 'manager')) ? [
+            { href: `/dashboard/shops/${shopId}/settings/staff`, label: 'Staff', icon: Users },
+            {
+                href: `/dashboard/shops/${shopId}/notifications`,
+                label: 'Notifications',
+                icon: ShieldCheck,
+                badge: pendingNotificationsCount > 0 ? 'red' : null
+            }
         ] : []),
     ]
 
@@ -108,7 +151,7 @@ export function ShopSidebar({ shopId, shopName = 'SimplePOS', businessType, aler
                 </div>
 
                 {/* Main Navigation */}
-                <nav className="flex-1 p-4 space-y-1">
+                <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                     {navItems.map((item) => {
                         const isActive = pathname === item.href ||
                             (item.href !== '/dashboard' && pathname?.startsWith(`${item.href}/`) &&
@@ -141,15 +184,17 @@ export function ShopSidebar({ shopId, shopName = 'SimplePOS', businessType, aler
 
                 {/* Bottom Section */}
                 <div className="p-4 border-t border-slate-100 space-y-1">
-                    {/* Only show User Settings if user has a proper Supabase auth session (not just PIN login) */}
-                    {hasSupabaseSession && (
-                        <Link href={`/dashboard/shops/${shopId}/user-settings`}>
-                            <div className="w-full flex items-center px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors group">
-                                <User className="mr-3 h-5 w-5 text-slate-400 group-hover:text-slate-600" />
-                                {staffSession ? <span className="capitalize">{staffSession.name} - User Settings</span> : 'User Settings'}
-                            </div>
-                        </Link>
-                    )}
+                    {/* Show User Settings/Staff Name based on session */}
+                    <Link href={`/dashboard/shops/${shopId}/user-settings`}>
+                        <div className="w-full flex items-center px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors group">
+                            <User className="mr-3 h-5 w-5 text-slate-400 group-hover:text-slate-600" />
+                            {staffSession ? (
+                                <span className="capitalize">{staffSession.name} - User Settings</span>
+                            ) : (
+                                <span>{hasSupabaseSession ? 'User Settings' : 'Settings'}</span>
+                            )}
+                        </div>
+                    </Link>
                     {/* Clock Out button - only clocks out from current shop */}
                     {staffSession && (
                         <button
@@ -176,7 +221,7 @@ export function ShopSidebar({ shopId, shopName = 'SimplePOS', businessType, aler
                 </div>
 
                 {/* Icon Navigation */}
-                <nav className="flex-1 p-2 space-y-1">
+                <nav className="flex-1 p-2 space-y-1 overflow-y-auto no-scrollbar">
                     {navItems.map((item) => {
                         const isActive = pathname === item.href ||
                             (item.href !== '/dashboard' && pathname?.startsWith(`${item.href}/`) &&
@@ -272,17 +317,17 @@ export function ShopSidebar({ shopId, shopName = 'SimplePOS', businessType, aler
                             })}
                         </nav>
 
-                        {/* Bottom Section */}
                         <div className="p-4 border-t border-slate-100 space-y-1">
-                            {/* Only show User Settings if user has a proper Supabase auth session (not just PIN login) */}
-                            {hasSupabaseSession && (
-                                <Link href={`/dashboard/shops/${shopId}/user-settings`} onClick={handleNavClick}>
-                                    <div className="w-full flex items-center px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
-                                        <User className="mr-3 h-5 w-5 text-slate-400" />
-                                        {staffSession ? <span className="capitalize">{staffSession.name} - User Settings</span> : 'User Settings'}
-                                    </div>
-                                </Link>
-                            )}
+                            <Link href={`/dashboard/shops/${shopId}/user-settings`} onClick={handleNavClick}>
+                                <div className="w-full flex items-center px-3 py-2.5 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                                    <User className="mr-3 h-5 w-5 text-slate-400" />
+                                    {staffSession ? (
+                                        <span className="capitalize">{staffSession.name} - User Settings</span>
+                                    ) : (
+                                        <span>{hasSupabaseSession ? 'User Settings' : 'Settings'}</span>
+                                    )}
+                                </div>
+                            </Link>
                             {/* Clock Out button - only clocks out from current shop */}
                             {staffSession && (
                                 <button

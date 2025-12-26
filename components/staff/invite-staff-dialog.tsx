@@ -28,18 +28,40 @@ import { useStaffSession } from '@/components/staff/staff-session-provider'
 
 interface InviteStaffDialogProps {
     shopId: string
+    businessType?: 'quick_checkout' | 'table_order'
 }
 
-export function InviteStaffDialog({ shopId }: InviteStaffDialogProps) {
+const roleDescriptions: Record<string, string> = {
+    // Quick Checkout roles
+    manager: 'Full Access',
+    administrator: 'Full Access',
+    supervisor: 'Sales & Management',
+    cashier: 'Sales & Service',
+
+    // Restaurant roles
+    waiter: 'Orders & Payments',
+    chef: 'Kitchen Orders',
+    runner: 'Table Service',
+}
+
+export function InviteStaffDialog({ shopId, businessType = 'quick_checkout' }: InviteStaffDialogProps) {
     const { staff } = useStaffSession()
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [showCredentials, setShowCredentials] = useState(false)
+    const [showAlreadyMember, setShowAlreadyMember] = useState(false)
     const [showExistingUserSuccess, setShowExistingUserSuccess] = useState(false)
     const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null)
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
-    const [role, setRole] = useState<StaffRole>('waiter')
+
+    // Define available roles based on business type (Alphabetical order)
+    const availableRoles = businessType === 'table_order'
+        ? ['chef', 'manager', 'runner', 'waiter']
+        : ['administrator', 'cashier', 'manager', 'supervisor']
+
+    // Default to the first role in the alphabetized list
+    const [role, setRole] = useState<string>(availableRoles[0])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -47,23 +69,32 @@ export function InviteStaffDialog({ shopId }: InviteStaffDialogProps) {
 
         try {
             // Pass the clocked-in staff's ID as the inviter
-            const result = await inviteStaff(shopId, name, email, role, staff?.id)
+            const result = await inviteStaff(shopId, name, email, role, staff?.id, businessType)
 
             if (result.error) {
-                toast.error(result.error)
+                if (result.error === 'User is already a staff member') {
+                    // Specific handling for existing member
+                    setShowAlreadyMember(true)
+                    setOpen(false)
+                    setName('')
+                    setEmail('')
+                    setRole(availableRoles[0])
+                } else {
+                    toast.error(result.error)
+                }
             } else if (result.credentials) {
                 setCredentials(result.credentials)
                 setShowCredentials(true)
                 setOpen(false)
                 setName('')
                 setEmail('')
-                setRole('waiter')
+                setRole(availableRoles[0])
             } else if (result.existingUser) {
                 setShowExistingUserSuccess(true)
                 setOpen(false)
                 setName('')
                 setEmail('')
-                setRole('waiter')
+                setRole(availableRoles[0])
             }
         } catch (error) {
             toast.error('Failed to invite staff')
@@ -114,15 +145,21 @@ export function InviteStaffDialog({ shopId }: InviteStaffDialogProps) {
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="role">Role</Label>
-                                <Select value={role} onValueChange={(v) => setRole(v as StaffRole)}>
-                                    <SelectTrigger>
+                                <Select value={role} onValueChange={(v) => setRole(v)}>
+                                    <SelectTrigger className="h-12 bg-white">
                                         <SelectValue placeholder="Select a role" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="manager">Manager</SelectItem>
-                                        <SelectItem value="waiter">Waiter</SelectItem>
-                                        <SelectItem value="chef">Chef</SelectItem>
-                                        <SelectItem value="runner">Runner</SelectItem>
+                                        {availableRoles.map(r => (
+                                            <SelectItem key={r} value={r} textValue={r} className="py-2 cursor-pointer">
+                                                <div className="flex flex-col items-start gap-0.5">
+                                                    <span className="font-semibold capitalize text-slate-900">{r}</span>
+                                                    <span className="text-xs text-slate-500 font-normal">
+                                                        {roleDescriptions[r] || 'Staff member'}
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -204,6 +241,27 @@ export function InviteStaffDialog({ shopId }: InviteStaffDialogProps) {
                             className="w-full bg-purple-600 hover:bg-purple-700"
                         >
                             Done
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Already Member Modal */}
+            <Dialog open={showAlreadyMember} onOpenChange={setShowAlreadyMember}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle className="text-red-600">Notice</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-2">
+                        <p className="text-slate-700">
+                            This User is already a member. Check the details and try again.
+                        </p>
+                        <Button
+                            onClick={() => setShowAlreadyMember(false)}
+                            variant="outline"
+                            className="w-full"
+                        >
+                            Close
                         </Button>
                     </div>
                 </DialogContent>

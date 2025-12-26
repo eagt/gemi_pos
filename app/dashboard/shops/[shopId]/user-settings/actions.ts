@@ -67,7 +67,7 @@ export async function getUserShopPins() {
     // Get user's shop_staff entries
     const { data: staffEntries } = await supabase
         .from('shop_staff')
-        .select('shop_id, pin')
+        .select('shop_id, pin, restaurant_role, quick_checkout_role')
         .eq('user_id', user.id)
 
     if (!staffEntries || staffEntries.length === 0) return []
@@ -78,16 +78,28 @@ export async function getUserShopPins() {
 
     const { data: shops } = await serviceClient
         .from('shops')
-        .select('id, name')
+        .select('id, name, business_type')
         .in('id', shopIds)
 
-    const shopMap = new Map(shops?.map((s: any) => [s.id, s.name]) || [])
+    const shopMap = new Map(shops?.map((s: any) => [s.id, s]) || [])
 
-    return staffEntries.map(entry => ({
-        shopId: entry.shop_id,
-        shopName: shopMap.get(entry.shop_id) || 'Unknown Shop',
-        hasPin: !!entry.pin
-    }))
+    return staffEntries.map(entry => {
+        const shop = shopMap.get(entry.shop_id)
+        const businessType = shop?.business_type
+
+        // Determine which role to show based on business type
+        let role = entry.restaurant_role
+        if (businessType === 'quick_checkout' && entry.quick_checkout_role) {
+            role = entry.quick_checkout_role as any
+        }
+
+        return {
+            shopId: entry.shop_id,
+            shopName: shop?.name || 'Unknown Shop',
+            role: role || 'Staff',
+            hasPin: !!entry.pin
+        }
+    })
 }
 
 export async function updateUserShopPin(shopId: string, currentPin: string, newPin: string) {

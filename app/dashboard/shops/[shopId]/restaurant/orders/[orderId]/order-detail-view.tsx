@@ -28,7 +28,7 @@ interface StatusChange {
     old_status: string | null
     new_status: string | null
     changed_at: string
-    staff: { name: string; role: StaffRole } | null
+    staff: { name: string; restaurant_role: StaffRole } | null
 }
 
 interface Order {
@@ -69,7 +69,7 @@ export function OrderDetailView({ shopId, shopName, order: initialOrder }: Order
             .from('order_status_changes')
             .select(`
         *,
-        staff:shop_staff(name, role)
+        staff:shop_staff(name, restaurant_role)
       `)
             .eq('order_id', order.id)
             .order('changed_at', { ascending: true })
@@ -109,7 +109,7 @@ export function OrderDetailView({ shopId, shopName, order: initialOrder }: Order
         }
 
         // Permission check
-        const role = staff.role
+        const role = staff.restaurantRole
         let allowed = false
 
         if (role === 'manager') allowed = true
@@ -146,7 +146,7 @@ export function OrderDetailView({ shopId, shopName, order: initialOrder }: Order
     }
 
     const handleVoidOrder = async () => {
-        if (!staff || staff.role !== 'manager') {
+        if (!staff || staff.restaurantRole !== 'manager') {
             toast.error('Only managers can void orders')
             return
         }
@@ -273,7 +273,7 @@ export function OrderDetailView({ shopId, shopName, order: initialOrder }: Order
                 )}
 
                 {/* Manager Actions */}
-                {staff?.role === 'manager' && order.status !== 'void' && (
+                {staff?.restaurantRole === 'manager' && order.status !== 'void' && (
                     <Card className="border-red-200">
                         <CardHeader>
                             <CardTitle className="text-red-700">Manager Actions</CardTitle>
@@ -328,7 +328,7 @@ export function OrderDetailView({ shopId, shopName, order: initialOrder }: Order
                                                 {change.staff && (
                                                     <span className="flex items-center gap-1">
                                                         <User className="w-3 h-3" />
-                                                        {change.staff.name} ({change.staff.role})
+                                                        {change.staff.name} ({change.staff.restaurant_role})
                                                     </span>
                                                 )}
                                                 {format(new Date(change.changed_at), 'MMM d, yyyy h:mm a')}
@@ -365,6 +365,6 @@ export function OrderDetailView({ shopId, shopName, order: initialOrder }: Order
                     </Card>
                 )}
             </div>
-        </div>
+        </div >
     )
 }

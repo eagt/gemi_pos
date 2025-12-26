@@ -138,22 +138,38 @@ export async function fetchActiveSession(shopId: string) {
 
     if (!user) return null
 
+    const cookieStore = await cookies()
+    const sessionCookie = cookieStore.get('pos_staff_session')
+    let targetUserId = user.id
+
+    if (sessionCookie) {
+        try {
+            const session = JSON.parse(sessionCookie.value)
+            if (session.userId) {
+                targetUserId = session.userId
+            }
+        } catch (e) { }
+    }
+
+    // 1. Check if this specific user is clocked in
     const { data: workingShop } = await supabase
         .from('working_shop')
         .select('clocked_in')
         .eq('shop_id', shopId)
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .single()
 
+    // If not clocked in, return null (important for safety)
     if (!workingShop || !workingShop.clocked_in) {
         return null
     }
 
+    // 2. Fetch staff details for the target user
     const { data: staff } = await supabase
         .from('shop_staff')
         .select('*')
         .eq('shop_id', shopId)
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .single()
 
     if (!staff) return null
@@ -161,7 +177,7 @@ export async function fetchActiveSession(shopId: string) {
     return {
         staffId: staff.id,
         shopId: staff.shop_id,
-        role: staff.role,
+        restaurantRole: staff.restaurant_role,
         name: staff.name,
         userId: staff.user_id,
         avatarUrl: staff.avatar_url,

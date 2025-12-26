@@ -2,6 +2,7 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { ShopSidebar } from '@/components/shop/shop-sidebar'
 import { StaffSessionProvider } from '@/components/staff/staff-session-provider'
 import { IdleTimerProvider } from '@/components/idle-timer-provider'
+import { ManagerNotificationListener } from '@/components/notifications/manager-notification-listener'
 
 export default async function ShopLayout({
     children,
@@ -44,20 +45,20 @@ export default async function ShopLayout({
         console.warn('Could not fetch idle_timeout_minutes, using default')
     }
 
-    // Fetch user role
-    let userRole = null
+    // Fetch user roles
+    let restaurantRole = null
     let quickCheckoutRole = null
 
     if (user) {
         const { data: staff } = await supabase
             .from('shop_staff')
-            .select('role, quick_checkout_role')
+            .select('restaurant_role, quick_checkout_role')
             .eq('shop_id', shopId)
             .eq('user_id', user.id)
             .single()
 
         if (staff) {
-            userRole = staff.role
+            restaurantRole = staff.restaurant_role
             quickCheckoutRole = staff.quick_checkout_role
         }
     }
@@ -74,7 +75,7 @@ export default async function ShopLayout({
     })
 
     // Determine if current user is a Chef in table_order business
-    const isChef = shopData?.business_type === 'table_order' && userRole === 'chef'
+    const isChef = shopData?.business_type === 'table_order' && restaurantRole === 'chef'
 
     return (
         <div className="flex h-[100dvh] bg-slate-50 overflow-hidden">
@@ -83,7 +84,7 @@ export default async function ShopLayout({
                 shopName={shopData?.name}
                 businessType={shopData?.business_type}
                 alertCounts={{ outOfStock, lowStock }}
-                userRole={userRole}
+                restaurantRole={restaurantRole}
                 quickCheckoutRole={quickCheckoutRole}
             />
             <main className="flex-1 flex flex-col relative overflow-hidden">
@@ -92,13 +93,19 @@ export default async function ShopLayout({
                     shopName={shopData?.name}
                     businessType={shopData?.business_type}
                 >
+                    <ManagerNotificationListener
+                        shopId={shopId}
+                        userId={user?.id || ''}
+                        businessType={shopData?.business_type || 'quick_checkout'}
+                        restaurantRole={restaurantRole}
+                        quickCheckoutRole={quickCheckoutRole}
+                    />
                     {children}
                 </StaffSessionProvider>
                 {/* Idle timeout provider */}
                 <IdleTimerProvider
                     shopId={shopId}
                     timeoutMinutes={idleTimeoutMinutes}
-                    isChef={isChef}
                     businessType={shopData?.business_type || 'quick_checkout'}
                 />
             </main>

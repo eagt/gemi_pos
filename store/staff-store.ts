@@ -7,7 +7,7 @@ import { StaffRole } from '@/lib/types/database.types'
 interface StaffSession {
     staffId: string
     shopId: string
-    role: StaffRole
+    restaurantRole: StaffRole
     name: string
     userId: string | null
     avatarUrl?: string | null
@@ -44,6 +44,12 @@ const permissions: Record<StaffRole, string[]> = {
         'view_ready_orders',
         'mark_served',
     ],
+    cashier: [
+        'process_payment',
+        'view_orders',
+    ],
+    supervisor: ['*'],
+    administrator: ['*'],
 }
 
 // Status transition rules
@@ -70,6 +76,28 @@ const statusTransitions: Record<StaffRole, Record<string, string[]>> = {
     runner: {
         ready: ['served'],
     },
+    cashier: {
+        served: ['payment_requested'],
+        payment_requested: ['paid'],
+    },
+    supervisor: {
+        new: ['accepted', 'void'],
+        accepted: ['in_preparation', 'void'],
+        in_preparation: ['ready', 'void'],
+        ready: ['served', 'void'],
+        served: ['payment_requested', 'void'],
+        payment_requested: ['paid', 'void'],
+        paid: [],
+    },
+    administrator: {
+        new: ['accepted', 'void'],
+        accepted: ['in_preparation', 'void'],
+        in_preparation: ['ready', 'void'],
+        ready: ['served', 'void'],
+        served: ['payment_requested', 'void'],
+        payment_requested: ['paid', 'void'],
+        paid: [],
+    },
 }
 
 export const useStaffStore = create<StaffStore>((set, get) => ({
@@ -85,7 +113,7 @@ export const useStaffStore = create<StaffStore>((set, get) => ({
         const { session } = get()
         if (!session) return false
 
-        const rolePermissions = permissions[session.role]
+        const rolePermissions = permissions[session.restaurantRole]
 
         // Manager has all permissions
         if (rolePermissions.includes('*')) {
@@ -99,7 +127,7 @@ export const useStaffStore = create<StaffStore>((set, get) => ({
         const { session } = get()
         if (!session) return false
 
-        const allowedTransitions = statusTransitions[session.role] || {}
+        const allowedTransitions = statusTransitions[session.restaurantRole] || {}
         const allowed = allowedTransitions[currentStatus] || []
 
         return allowed.includes(newStatus)

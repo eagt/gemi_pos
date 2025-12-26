@@ -36,7 +36,7 @@ export default async function StaffSettingsPage({
                                 Manage your restaurant staff, roles, and access.
                             </p>
                         </div>
-                        <InviteStaffDialog shopId={shopId} />
+                        <InviteStaffDialog shopId={shopId} businessType={businessType} />
                     </div>
 
                     <StaffList staff={staffList} shopId={shopId} businessType={businessType} />

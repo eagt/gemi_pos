@@ -14,7 +14,7 @@ import { StaffRole } from '@/lib/types/database.types'
 interface StaffMember {
     id: string
     name: string
-    role: StaffRole
+    restaurantRole: StaffRole
     avatar_url: string | null
     pin: string | null // We only need to know if it exists
 }
@@ -22,7 +22,7 @@ interface StaffMember {
 interface StaffLoginViewProps {
     shopId: string
     shopName: string
-    onLogin: (staff: { id: string; name: string; role: StaffRole }) => void
+    onLogin: (staff: { id: string; name: string; restaurantRole: StaffRole }) => void
 }
 
 export function StaffLoginView({ shopId, shopName, onLogin }: StaffLoginViewProps) {
@@ -106,7 +106,7 @@ export function StaffLoginView({ shopId, shopName, onLogin }: StaffLoginViewProp
                                     {staff.name}
                                 </span>
                                 <span className="text-sm text-slate-400 mt-1 capitalize">
-                                    {staff.role}
+                                    {staff.restaurantRole}
                                 </span>
                             </button>
                         ))}

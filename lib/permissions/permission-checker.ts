@@ -39,7 +39,7 @@ const TABLE_ORDER_PERMISSIONS: Record<TableOrderRole, string[]> = {
  */
 export function hasPermission(
     businessType: BusinessType,
-    role: string,
+    restaurantRole: string,
     quickCheckoutRole: string | null,
     permissionKey: string,
     permissionOverrides?: Record<string, boolean> | null
@@ -51,11 +51,15 @@ export function hasPermission(
 
     // Check default permissions based on business type
     if (businessType === 'quick_checkout' && quickCheckoutRole) {
+        // Map generic "manage products" permission to specific creation permission
+        if (permissionKey === MANAGE_PRODUCTS_PERMISSION) {
+            return qcRoleHasPermission(quickCheckoutRole as QuickCheckoutRole, 'products.create')
+        }
         return qcRoleHasPermission(quickCheckoutRole as QuickCheckoutRole, permissionKey)
     }
 
-    if (businessType === 'table_order' && role) {
-        const rolePermissions = TABLE_ORDER_PERMISSIONS[role as TableOrderRole] || []
+    if (businessType === 'table_order' && restaurantRole) {
+        const rolePermissions = TABLE_ORDER_PERMISSIONS[restaurantRole as TableOrderRole] || []
         return rolePermissions.includes(permissionKey)
     }
 
@@ -68,7 +72,7 @@ export function hasPermission(
  */
 export function canManagePermissions(
     businessType: BusinessType,
-    role: string,
+    restaurantRole: string,
     quickCheckoutRole: string | null
 ): boolean {
     if (businessType === 'quick_checkout') {
@@ -76,7 +80,7 @@ export function canManagePermissions(
     }
 
     if (businessType === 'table_order') {
-        return role === 'manager'
+        return restaurantRole === 'manager'
     }
 
     return false
@@ -88,13 +92,13 @@ export function canManagePermissions(
  */
 export function canTogglePermission(
     businessType: BusinessType,
-    role: string,
+    restaurantRole: string,
     quickCheckoutRole: string | null,
     permissionKey: string
 ): boolean {
     // Manager/Administrator roles always have products.manage - cannot be toggled
     if (permissionKey === MANAGE_PRODUCTS_PERMISSION) {
-        if (businessType === 'table_order' && role === 'manager') {
+        if (businessType === 'table_order' && restaurantRole === 'manager') {
             return false // Always granted
         }
         if (businessType === 'quick_checkout' && quickCheckoutRole === 'administrator') {
@@ -110,7 +114,7 @@ export function canTogglePermission(
  */
 export function getDefaultPermissionState(
     businessType: BusinessType,
-    role: string,
+    restaurantRole: string,
     quickCheckoutRole: string | null,
     permissionKey: string
 ): boolean {
@@ -118,8 +122,8 @@ export function getDefaultPermissionState(
         return qcRoleHasPermission(quickCheckoutRole as QuickCheckoutRole, permissionKey)
     }
 
-    if (businessType === 'table_order' && role) {
-        const rolePermissions = TABLE_ORDER_PERMISSIONS[role as TableOrderRole] || []
+    if (businessType === 'table_order' && restaurantRole) {
+        const rolePermissions = TABLE_ORDER_PERMISSIONS[restaurantRole as TableOrderRole] || []
         return rolePermissions.includes(permissionKey)
     }
 

@@ -19,7 +19,7 @@ export async function getPendingInvitations() {
       shop_id,
       created_at,
       accepted_at,
-      role,
+      restaurant_role,
       quick_checkout_role,
       user_id,
       shop_id,

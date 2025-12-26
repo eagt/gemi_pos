@@ -81,7 +81,7 @@ export async function inviteQuickCheckoutStaff(
         .insert({
             shop_id: shopId,
             user_id: authUser.user.id,
-            role: 'manager', // Required by DB constraint
+            restaurant_role: 'waiter', // Default placeholder
             name,
             email,
             phone,

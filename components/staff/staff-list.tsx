@@ -11,7 +11,8 @@ interface StaffMember {
     id: string
     name: string
     email: string | null
-    role: string
+    restaurant_role: string
+    quick_checkout_role?: string | null
     created_at: string
     accepted_at: string | null
     invited_by_staff: { name: string }[] | null
@@ -20,21 +21,33 @@ interface StaffMember {
 interface StaffListProps {
     staff: StaffMember[]
     shopId: string
-    businessType: string
+    businessType: 'quick_checkout' | 'table_order'
 }
 
 const roleColors = {
+    // Restaurant
     manager: 'bg-purple-100 text-purple-700 border-purple-200',
     waiter: 'bg-blue-100 text-blue-700 border-blue-200',
     chef: 'bg-orange-100 text-orange-700 border-orange-200',
     runner: 'bg-green-100 text-green-700 border-green-200',
+
+    // Quick Checkout
+    administrator: 'bg-red-100 text-red-700 border-red-200',
+    supervisor: 'bg-amber-100 text-amber-700 border-amber-200',
+    cashier: 'bg-emerald-100 text-emerald-700 border-emerald-200',
 }
 
 const roleLabels = {
+    // Restaurant
     manager: 'Manager',
     waiter: 'Waiter',
     chef: 'Chef',
     runner: 'Runner',
+
+    // Quick Checkout
+    administrator: 'Administrator',
+    supervisor: 'Supervisor',
+    cashier: 'Cashier',
 }
 
 export function StaffList({ staff, shopId, businessType }: StaffListProps) {
@@ -81,64 +94,70 @@ export function StaffList({ staff, shopId, businessType }: StaffListProps) {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {staff.map((member) => (
-                                    <tr key={member.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="py-4 px-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                                                    <User className="h-5 w-5 text-purple-600" />
+                                {staff.map((member) => {
+                                    const displayRole = businessType === 'quick_checkout'
+                                        ? (member.quick_checkout_role || member.restaurant_role)
+                                        : member.restaurant_role
+
+                                    return (
+                                        <tr key={member.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="py-4 px-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                                        <User className="h-5 w-5 text-purple-600" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="font-medium text-slate-900 whitespace-nowrap capitalize">{member.name}</div>
+                                                        {member.email && (
+                                                            <div className="text-sm text-slate-500 flex items-center gap-1">
+                                                                <Mail className="h-3 w-3 flex-shrink-0" />
+                                                                <span className="truncate">{member.email}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div className="min-w-0">
-                                                    <div className="font-medium text-slate-900 whitespace-nowrap capitalize">{member.name}</div>
-                                                    {member.email && (
-                                                        <div className="text-sm text-slate-500 flex items-center gap-1">
-                                                            <Mail className="h-3 w-3 flex-shrink-0" />
-                                                            <span className="truncate">{member.email}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-4 px-4">
-                                            <Badge
-                                                variant="outline"
-                                                className={roleColors[member.role as keyof typeof roleColors] || 'bg-slate-100 text-slate-700'}
-                                            >
-                                                <Shield className="h-3 w-3 mr-1" />
-                                                {roleLabels[member.role as keyof typeof roleLabels] || member.role}
-                                            </Badge>
-                                        </td>
-                                        <td className="py-4 px-4">
-                                            {member.accepted_at ? (
-                                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 whitespace-nowrap">
-                                                    <UserCheck className="h-3 w-3 mr-1" />
-                                                    Active
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                <Badge
+                                                    variant="outline"
+                                                    className={roleColors[displayRole as keyof typeof roleColors] || 'bg-slate-100 text-slate-700'}
+                                                >
+                                                    <Shield className="h-3 w-3 mr-1" />
+                                                    {roleLabels[displayRole as keyof typeof roleLabels] || displayRole}
                                                 </Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 whitespace-nowrap">
-                                                    <Clock className="h-3 w-3 mr-1" />
-                                                    Pending
-                                                </Badge>
-                                            )}
-                                        </td>
-                                        <td className="py-4 px-4 text-sm text-slate-600 whitespace-nowrap">
-                                            {formatDistanceToNow(new Date(member.created_at), { addSuffix: true })}
-                                        </td>
-                                        <td className="py-4 px-4 text-sm text-slate-600 whitespace-nowrap">
-                                            <span className="capitalize">{member.invited_by_staff?.[0]?.name || '-'}</span>
-                                        </td>
-                                        <td className="py-4 px-4 text-right">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8"
-                                                onClick={() => handleEdit(member)}
-                                            >
-                                                <Edit2 className="h-4 w-4 text-slate-600" />
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                            </td>
+                                            <td className="py-4 px-4">
+                                                {member.accepted_at ? (
+                                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 whitespace-nowrap">
+                                                        <UserCheck className="h-3 w-3 mr-1" />
+                                                        Active
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 whitespace-nowrap">
+                                                        <Clock className="h-3 w-3 mr-1" />
+                                                        Pending
+                                                    </Badge>
+                                                )}
+                                            </td>
+                                            <td className="py-4 px-4 text-sm text-slate-600 whitespace-nowrap">
+                                                {formatDistanceToNow(new Date(member.created_at), { addSuffix: true })}
+                                            </td>
+                                            <td className="py-4 px-4 text-sm text-slate-600 whitespace-nowrap">
+                                                <span className="capitalize">{member.invited_by_staff?.[0]?.name || '-'}</span>
+                                            </td>
+                                            <td className="py-4 px-4 text-right">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8"
+                                                    onClick={() => handleEdit(member)}
+                                                >
+                                                    <Edit2 className="h-4 w-4 text-slate-600" />
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -147,64 +166,70 @@ export function StaffList({ staff, shopId, businessType }: StaffListProps) {
 
             {/* Mobile Card View (visible on mobile only) */}
             <div className="md:hidden space-y-3">
-                {staff.map((member) => (
-                    <Card key={member.id} className="overflow-hidden">
-                        <CardContent className="p-4">
-                            <div className="flex items-start justify-between gap-3 mb-3">
-                                <div className="flex items-start gap-3">
-                                    <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                                        <User className="h-6 w-6 text-purple-600" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="font-semibold text-slate-900 truncate capitalize">{member.name}</div>
-                                        {member.email && (
-                                            <div className="text-sm text-slate-500 flex items-center gap-1 mt-0.5">
-                                                <Mail className="h-3 w-3 flex-shrink-0" />
-                                                <span className="truncate">{member.email}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 -mt-1 -mr-2" onClick={() => handleEdit(member)}>
-                                    <Edit2 className="h-4 w-4 text-slate-500" />
-                                </Button>
-                            </div>
+                {staff.map((member) => {
+                    const displayRole = businessType === 'quick_checkout'
+                        ? (member.quick_checkout_role || member.restaurant_role)
+                        : member.restaurant_role
 
-                            <div className="flex flex-wrap gap-2 mb-3">
-                                <Badge
-                                    variant="outline"
-                                    className={roleColors[member.role as keyof typeof roleColors] || 'bg-slate-100 text-slate-700'}
-                                >
-                                    <Shield className="h-3 w-3 mr-1" />
-                                    {roleLabels[member.role as keyof typeof roleLabels] || member.role}
-                                </Badge>
-                                {member.accepted_at ? (
-                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                        <UserCheck className="h-3 w-3 mr-1" />
-                                        Active
-                                    </Badge>
-                                ) : (
-                                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                                        <Clock className="h-3 w-3 mr-1" />
-                                        Pending
-                                    </Badge>
-                                )}
-                            </div>
-
-                            <div className="text-xs text-slate-500 space-y-1">
-                                <div className="flex items-center gap-1">
-                                    <Clock className="h-3 w-3" />
-                                    Joined {formatDistanceToNow(new Date(member.created_at), { addSuffix: true })}
-                                </div>
-                                {member.invited_by_staff?.[0]?.name && (
-                                    <div>
-                                        Invited by <span className="capitalize">{member.invited_by_staff[0].name}</span>
+                    return (
+                        <Card key={member.id} className="overflow-hidden">
+                            <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="flex items-start gap-3">
+                                        <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                            <User className="h-6 w-6 text-purple-600" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-semibold text-slate-900 truncate capitalize">{member.name}</div>
+                                            {member.email && (
+                                                <div className="text-sm text-slate-500 flex items-center gap-1 mt-0.5">
+                                                    <Mail className="h-3 w-3 flex-shrink-0" />
+                                                    <span className="truncate">{member.email}</span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 -mt-1 -mr-2" onClick={() => handleEdit(member)}>
+                                        <Edit2 className="h-4 w-4 text-slate-500" />
+                                    </Button>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                    <Badge
+                                        variant="outline"
+                                        className={roleColors[displayRole as keyof typeof roleColors] || 'bg-slate-100 text-slate-700'}
+                                    >
+                                        <Shield className="h-3 w-3 mr-1" />
+                                        {roleLabels[displayRole as keyof typeof roleLabels] || displayRole}
+                                    </Badge>
+                                    {member.accepted_at ? (
+                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                            <UserCheck className="h-3 w-3 mr-1" />
+                                            Active
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                            <Clock className="h-3 w-3 mr-1" />
+                                            Pending
+                                        </Badge>
+                                    )}
+                                </div>
+
+                                <div className="text-xs text-slate-500 space-y-1">
+                                    <div className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        Joined {formatDistanceToNow(new Date(member.created_at), { addSuffix: true })}
+                                    </div>
+                                    {member.invited_by_staff?.[0]?.name && (
+                                        <div>
+                                            Invited by <span className="capitalize">{member.invited_by_staff[0].name}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )
+                })}
             </div>
 
             <EditStaffSheet

@@ -3,20 +3,23 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Loader2, ShieldCheck, XCircle } from 'lucide-react'
 import { StaffSelectionGrid } from '@/components/staff/staff-selection-grid'
 import { PinSetupDialog } from '@/components/staff/pin-setup-dialog'
 import { useStaffStore } from '@/store/staff-store'
 import { toast } from 'sonner'
 import { StaffRole } from '@/lib/types/database.types'
-import { verifyStaffPin, setPinForStaff, finishForToday } from './actions'
+import { verifyStaffPin, setPinForStaff, finishForToday, requestClockIn, completeClockIn } from './actions'
+import { createClient } from '@/lib/supabase/client'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 
 interface StaffMember {
     id: string
     name: string
-    role: StaffRole
+    restaurant_role: StaffRole
     avatar_url?: string | null
     user_id: string | null
+    quick_checkout_role?: string | null
 }
 
 interface Shop {
@@ -40,6 +43,13 @@ export function StaffLoginClient({ shop, staff, shopId, returnUrl, currentUserId
     const [showPinSetup, setShowPinSetup] = useState(false)
     const [setupStaff, setSetupStaff] = useState<StaffMember | null>(null)
     const [isCheckingPin, setIsCheckingPin] = useState(true)
+
+    // Authorization State
+    const [waitingForRequestId, setWaitingForRequestId] = useState<string | null>(null)
+    const [waitingForName, setWaitingForName] = useState('')
+    const [approving, setApproving] = useState(false)
+
+    const supabase = createClient()
 
     // Check if current user needs PIN setup on page load
     useEffect(() => {
@@ -68,53 +78,89 @@ export function StaffLoginClient({ shop, staff, shopId, returnUrl, currentUserId
         checkForMissingPin()
     }, [currentUserId, staff, shopId])
 
+    // Wait for Authorization
+    useEffect(() => {
+        if (!waitingForRequestId) return
+
+        const channel = supabase
+            .channel(`auth_wait_${waitingForRequestId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'clock_in_requests',
+                    filter: `id=eq.${waitingForRequestId}`
+                },
+                async (payload) => {
+                    const req = payload.new as any
+                    if (req.status === 'approved') {
+                        setApproving(true)
+                        await executeCompleteLogin(waitingForRequestId)
+                    } else if (req.status === 'denied') {
+                        setWaitingForRequestId(null)
+                        toast.error('Manager denied the request')
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [waitingForRequestId, supabase])
+
+    const executeCompleteLogin = async (requestId: string) => {
+        try {
+            const result = await completeClockIn(requestId)
+            if (result.error) {
+                toast.error(result.error)
+                setWaitingForRequestId(null)
+                setApproving(false)
+                return
+            }
+
+            toast.success(result.message || 'Clocked in successfully!')
+
+            // Set session in store (handled by backend cookie but nice to have in store for client sync)
+            if (result.success) {
+                router.refresh()
+                const targetUrl = returnUrl ? decodeURIComponent(returnUrl) : `/dashboard/shops/${shopId}/pos`
+                router.push(targetUrl)
+            }
+        } catch (error) {
+            console.error('Completion error:', error)
+            setWaitingForRequestId(null)
+            setApproving(false)
+        }
+    }
+
     const handleStaffLogin = async (staffId: string, pin: string): Promise<boolean> => {
         try {
-            // Verify PIN
-            const result = await verifyStaffPin(shopId, staffId, pin)
+            // First check if setup needed (Standard flow fallback)
+            // But verifyStaffPin is used for this check usually. 
+            // requestClockIn checks PIN internally.
 
-            // This shouldn't happen now since we check on mount, but just in case
-            if (result.needsSetup && result.staff) {
-                setSetupStaff(result.staff as any)
-                setShowPinSetup(true)
+            const result = await requestClockIn(shopId, staffId, pin)
+
+            if (result.error) {
+                toast.error(result.error)
                 return false
             }
 
-            if (!result.success || !result.staff) {
-                toast.error(result.error || 'Invalid PIN')
-                return false
-            }
-
-            if (result.mustChangePassword) {
-                toast.info('Please change your temporary password')
-                // Pass the returnUrl (or default to POS) to the change password page
-                const targetUrl = returnUrl ? decodeURIComponent(returnUrl) : `/dashboard/shops/${shopId}/pos`
-                router.push(`/change-password?returnUrl=${encodeURIComponent(targetUrl)}`)
+            if (result.status === 'approved') {
+                // Auto-approved
+                await executeCompleteLogin(result.requestId!)
                 return true
             }
 
-            toast.success(`Welcome back, ${result.staff.name}!`)
-
-            // Set session in store
-            useStaffStore.getState().setSession({
-                staffId: result.staff.id,
-                shopId: result.staff.shop_id,
-                role: result.staff.role,
-                name: result.staff.name,
-                userId: result.staff.user_id,
-                avatarUrl: result.staff.avatar_url,
-                quickCheckoutRole: result.staff.quick_checkout_role
-            })
-
-            // Redirect to returnUrl if present
-            if (returnUrl) {
-                router.push(decodeURIComponent(returnUrl))
-                return true
+            if (result.status === 'pending') {
+                setWaitingForName(result.staffName || 'Staff')
+                setWaitingForRequestId(result.requestId!)
+                return true // Close PIN pad to show waiting modal
             }
 
-            // Always redirect to POS
-            router.push(`/dashboard/shops/${shopId}/pos`)
-            return true
+            return false
         } catch (error) {
             console.error('Login error:', error)
             return false
@@ -245,6 +291,7 @@ export function StaffLoginClient({ shop, staff, shopId, returnUrl, currentUserId
                 onFinishShift={handleFinishShift}
                 onStartShift={handleStartShift}
                 shopName={shop.name}
+                businessType={shop.business_type as any}
                 showBackButton={isManager}
             />
             <PinSetupDialog
@@ -253,6 +300,45 @@ export function StaffLoginClient({ shop, staff, shopId, returnUrl, currentUserId
                 onComplete={handlePinSetupComplete}
                 onCancel={handlePinSetupCancel}
             />
+            {/* Waiting for Approval Dialog */}
+            <Dialog open={!!waitingForRequestId} onOpenChange={(open) => {
+                if (!open && !approving) {
+                    // Ideally we should cancel the request if user closes dialog?
+                    // For now just close local state
+                    setWaitingForRequestId(null)
+                }
+            }}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <ShieldCheck className="h-6 w-6 text-blue-600" />
+                            Manager Authorization
+                        </DialogTitle>
+                        <DialogDescription>
+                            Approval required for <strong className="capitalize">{waitingForName}</strong>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-8 flex flex-col items-center justify-center text-center space-y-4">
+                        {approving ? (
+                            <>
+                                <div className="h-12 w-12 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
+                                <p className="text-lg font-medium text-emerald-600">Logging in...</p>
+                            </>
+                        ) : (
+                            <>
+                                <div className="h-12 w-12 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+                                <p className="text-lg font-medium text-slate-700">Waiting for manager approval...</p>
+                                <p className="text-sm text-slate-500">Please ask a manager to approve on their device.</p>
+                            </>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </>
     )
+}
+
+function capitalizeName(name: string): string {
+    if (!name) return ''
+    return name.charAt(0).toUpperCase() + name.slice(1)
 }

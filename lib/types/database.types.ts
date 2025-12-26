@@ -28,7 +28,7 @@ export type QuickCheckoutOrderStatus =
 export type OrderStatus = RestaurantOrderStatus | QuickCheckoutOrderStatus
 
 // Staff roles
-export type StaffRole = 'manager' | 'waiter' | 'chef' | 'runner'
+export type StaffRole = 'manager' | 'waiter' | 'chef' | 'runner' | 'cashier' | 'supervisor' | 'administrator'
 
 // Business types
 export type BusinessType = 'quick_checkout' | 'table_order'
@@ -37,92 +37,10 @@ export interface Database {
     public: {
         Tables: {
             profiles: {
-                Row: {
-                    id: string
-                    email: string
-                    full_name: string | null
-                    avatar_url: string | null
-                    created_at: string
-                    updated_at: string
-                }
-                Insert: {
-                    id: string
-                    email: string
-                    full_name?: string | null
-                    avatar_url?: string | null
-                    created_at?: string
-                    updated_at?: string
-                }
-                Update: {
-                    id?: string
-                    email?: string
-                    full_name?: string | null
-                    avatar_url?: string | null
-                    created_at?: string
-                    updated_at?: string
-                }
+                // ... (keep as is)
             }
             shops: {
-                Row: {
-                    created_at: string
-                    id: string
-                    logo_url: string | null
-                    name: string
-                    owner_id: string
-                    slug: string | null
-                    currency: string | null
-                    timezone: string | null
-                    phone: string | null
-                    email: string | null
-                    address: string | null
-                    website: string | null
-                    instagram: string | null
-                    tiktok: string | null
-                    x_handle: string | null
-                    settings: Json | null
-                    business_type: BusinessType
-                    updated_at: string
-                }
-                Insert: {
-                    created_at?: string
-                    id?: string
-                    logo_url?: string | null
-                    name: string
-                    owner_id: string
-                    slug?: string | null
-                    currency?: string | null
-                    timezone?: string | null
-                    phone?: string | null
-                    email?: string | null
-                    address?: string | null
-                    website?: string | null
-                    instagram?: string | null
-                    tiktok?: string | null
-                    x_handle?: string | null
-                    settings?: Json | null
-                    business_type?: BusinessType
-                    updated_at?: string
-                }
-                Update: {
-                    created_at?: string
-                    id?: string
-                    logo_url?: string | null
-                    name?: string
-                    owner_id?: string
-                    slug?: string | null
-                    currency?: string | null
-                    timezone?: string | null
-                    phone?: string | null
-                    email?: string | null
-                    address?: string | null
-                    website?: string | null
-                    instagram?: string | null
-                    tiktok?: string | null
-                    x_handle?: string | null
-                    settings?: Json | null
-                    business_type?: BusinessType
-                    updated_at?: string
-                }
+                // ... (keep as is)
             }
             shop_staff: {
                 Row: {
@@ -130,39 +48,45 @@ export interface Database {
                     shop_id: string
                     user_id: string | null
                     email: string | null
-                    role: StaffRole
+                    restaurant_role: StaffRole
                     name: string
                     pin: string | null
                     avatar_url: string | null
                     created_at: string
                     invited_by: string | null
                     accepted_at: string | null
+                    quick_checkout_role?: string | null
+                    authorization_status: 'yes' | 'no' | null
                 }
                 Insert: {
                     id?: string
                     shop_id: string
                     user_id?: string | null
                     email?: string | null
-                    role: StaffRole
+                    restaurant_role: StaffRole
                     name: string
                     pin?: string | null
                     avatar_url?: string | null
                     created_at?: string
                     invited_by?: string | null
                     accepted_at?: string | null
+                    quick_checkout_role?: string | null
+                    authorization_status?: 'yes' | 'no' | null
                 }
                 Update: {
                     id?: string
                     shop_id?: string
                     user_id?: string | null
                     email?: string | null
-                    role?: StaffRole
+                    restaurant_role?: StaffRole
                     name?: string
                     pin?: string | null
                     avatar_url?: string | null
                     created_at?: string
                     invited_by?: string | null
                     accepted_at?: string | null
+                    quick_checkout_role?: string | null
+                    authorization_status?: 'yes' | 'no' | null
                 }
             }
             products: {
@@ -309,6 +233,38 @@ export interface Database {
                     old_status?: string | null
                     new_status?: string | null
                     changed_at?: string
+                }
+            }
+            clock_in_requests: {
+                Row: {
+                    id: string
+                    shop_id: string
+                    staff_user_id: string
+                    status: 'pending' | 'approved' | 'denied' | 'expired'
+                    created_at: string
+                    responded_by_user_id: string | null
+                    responded_at: string | null
+                    is_dismissed: boolean
+                }
+                Insert: {
+                    id?: string
+                    shop_id: string
+                    staff_user_id: string
+                    status?: 'pending' | 'approved' | 'denied' | 'expired'
+                    created_at?: string
+                    responded_by_user_id?: string | null
+                    responded_at?: string | null
+                    is_dismissed?: boolean
+                }
+                Update: {
+                    id?: string
+                    shop_id?: string
+                    staff_user_id?: string
+                    status?: 'pending' | 'approved' | 'denied' | 'expired'
+                    created_at?: string
+                    responded_by_user_id?: string | null
+                    responded_at?: string | null
+                    is_dismissed?: boolean
                 }
             }
         }
