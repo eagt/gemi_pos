@@ -37,6 +37,7 @@ export async function createShop(name: string, businessType: 'quick_checkout' | 
                     id: user.id,
                     email: user.email,
                     full_name: user.user_metadata?.full_name || user.email,
+                    has_temporary_password: false, // Owners who sign up natively have permanent passwords
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 })
@@ -96,6 +97,7 @@ export async function createShop(name: string, businessType: 'quick_checkout' | 
                     shop_id: shop.id,
                     user_id: user.id,
                     restaurant_role: 'manager',
+                    quick_checkout_role: null,
                     name: user.user_metadata?.full_name || 'Manager',
                     email: user.email,
                     accepted_at: new Date().toISOString() // Active immediately
@@ -110,9 +112,9 @@ export async function createShop(name: string, businessType: 'quick_checkout' | 
                 .insert({
                     shop_id: shop.id,
                     user_id: user.id,
-                    restaurant_role: 'waiter', // Default placeholder
-                    quick_checkout_role: 'administrator', // Owner gets full access
-                    name: user.user_metadata?.full_name || 'Administrator',
+                    restaurant_role: null,
+                    quick_checkout_role: 'manager', // Use 'manager' universally for owners
+                    name: user.user_metadata?.full_name || 'Manager',
                     email: user.email,
                     is_active: true,
                     accepted_at: new Date().toISOString() // Active immediately

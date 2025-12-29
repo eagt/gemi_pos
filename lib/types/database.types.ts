@@ -37,10 +37,62 @@ export interface Database {
     public: {
         Tables: {
             profiles: {
-                // ... (keep as is)
+                Row: {
+                    id: string
+                    email: string | null
+                    full_name: string | null
+                    has_temporary_password: boolean
+                    avatar_url: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id: string
+                    email?: string | null
+                    full_name?: string | null
+                    has_temporary_password?: boolean
+                    avatar_url?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    email?: string | null
+                    full_name?: string | null
+                    has_temporary_password?: boolean
+                    avatar_url?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
             }
             shops: {
-                // ... (keep as is)
+                Row: {
+                    id: string
+                    name: string
+                    owner_id: string
+                    business_type: BusinessType
+                    settings: Json
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    name: string
+                    owner_id: string
+                    business_type?: BusinessType
+                    settings?: Json
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    name?: string
+                    owner_id?: string
+                    business_type?: BusinessType
+                    settings?: Json
+                    created_at?: string
+                    updated_at?: string
+                }
             }
             shop_staff: {
                 Row: {

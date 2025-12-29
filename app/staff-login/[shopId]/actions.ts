@@ -48,6 +48,32 @@ export async function verifyStaffPin(shopId: string, staffId: string, pin: strin
         }
     }
 
+    // Check if user needs to change password - do this BEFORE PIN validation
+    // so that the proactive check (empty PIN) can trigger the redirect
+    if (staffData.user_id) {
+        const { data: profile } = await serviceClient
+            .from('profiles')
+            .select('has_temporary_password')
+            .eq('id', staffData.user_id)
+            .single()
+
+        if (profile?.has_temporary_password) {
+            return {
+                success: true,
+                mustChangePassword: true,
+                staff: {
+                    id: staffData.id,
+                    shop_id: staffData.shop_id,
+                    restaurantRole: staffData.restaurant_role as StaffRole,
+                    name: staffData.name,
+                    user_id: staffData.user_id,
+                    avatar_url: staffData.avatar_url,
+                    quick_checkout_role: staffData.quick_checkout_role
+                }
+            }
+        }
+    }
+
     // Verify PIN using bcrypt
     const isValid = await bcrypt.compare(pin.trim(), staffData.pin)
 
@@ -84,31 +110,6 @@ export async function verifyStaffPin(shopId: string, staffId: string, pin: strin
             path: '/',
             maxAge: 60 * 60 * 12 // 12 hours
         })
-    }
-
-    // Check if user needs to change password
-    if (staffData.user_id) {
-        const { data: profile } = await serviceClient
-            .from('profiles')
-            .select('has_temporary_password')
-            .eq('id', staffData.user_id)
-            .single()
-
-        if (profile?.has_temporary_password) {
-            return {
-                success: true,
-                mustChangePassword: true,
-                staff: {
-                    id: staffData.id,
-                    shop_id: staffData.shop_id,
-                    restaurantRole: staffData.restaurant_role as StaffRole,
-                    name: staffData.name,
-                    user_id: staffData.user_id,
-                    avatar_url: staffData.avatar_url,
-                    quick_checkout_role: staffData.quick_checkout_role
-                }
-            }
-        }
     }
 
     return {
@@ -229,7 +230,19 @@ export async function setPinForStaff(shopId: string, staffId: string, pin: strin
         .eq('id', staffId)
         .single()
 
+    let mustChangePassword = false
     if (updatedStaff?.user_id) {
+        // Check for temporary password
+        const { data: profile } = await serviceClient
+            .from('profiles')
+            .select('has_temporary_password')
+            .eq('id', updatedStaff.user_id)
+            .single()
+
+        if (profile?.has_temporary_password) {
+            mustChangePassword = true
+        }
+
         const { error: workingShopError } = await serviceClient
             .from('working_shop')
             .upsert({
@@ -247,7 +260,7 @@ export async function setPinForStaff(shopId: string, staffId: string, pin: strin
         }
     }
 
-    return { success: true }
+    return { success: true, mustChangePassword }
 }
 
 /**
@@ -373,7 +386,7 @@ export async function finishForToday(shopId: string, targetUserId: string, pin: 
 /**
  * Start a new shift - staff logs in with email/password and joins the roster
  */
-export async function startShift(shopId: string, email: string, password: string) {
+export async function startShift(shopId: string, email: string, password: string, force: boolean = false) {
     // Use a temporary client that DOES NOT persist the session
     // This allows us to verify credentials without logging the browser in
     const tempClient = createVanillaClient(
@@ -416,7 +429,30 @@ export async function startShift(shopId: string, email: string, password: string
         return { error: 'You are not a staff member of this shop' }
     }
 
-    // Create/update working_shop record to add them to the roster
+    // MULTI-SHOP SESSION HANDOVER: Check if user is on another shop's roster
+    const { data: existingSession } = await serviceClient
+        .from('working_shop')
+        .select('shop_id, shops(name)')
+        .eq('user_id', userId)
+        .single()
+
+    if (existingSession && existingSession.shop_id !== shopId) {
+        if (!force) {
+            return {
+                confirmationNeeded: true,
+                previousShopName: (existingSession.shops as any)?.name || 'Another Shop'
+            }
+        }
+
+        // Terminate previous session and remove from previous roster
+        await serviceClient
+            .from('working_shop')
+            .delete()
+            .eq('shop_id', existingSession.shop_id)
+            .eq('user_id', userId)
+    }
+
+    // Create/update working_shop record to add them to the roster for THIS shop
     const { error: workingShopError } = await serviceClient
         .from('working_shop')
         .upsert({
@@ -688,6 +724,20 @@ export async function completeClockIn(requestId: string) {
 
     if (!staffMember) return { error: 'Staff member not found' }
 
+    // 1.5 Check for temporary password change requirement
+    const { data: profile } = await serviceClient
+        .from('profiles')
+        .select('has_temporary_password')
+        .eq('id', staffMember.user_id)
+        .single()
+
+    if (profile?.has_temporary_password) {
+        return {
+            success: true,
+            mustChangePassword: true
+        }
+    }
+
     // 2. Create Session (Cookie)
     const sessionData = {
         userId: staffMember.user_id,
@@ -722,6 +772,7 @@ export async function completeClockIn(requestId: string) {
 
     return {
         success: true,
+        mustChangePassword: false,
         message: `Welcome back, ${capitalizeName(staffMember.name)}`
     }
 }

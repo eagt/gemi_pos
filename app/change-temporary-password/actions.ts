@@ -18,7 +18,18 @@ export async function completeSetup(password: string, shopId: string) {
         return { error: passwordError.message }
     }
 
-    // 2. Mark invitation as accepted
+    // 2. Clear temporary password flag
+    const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ has_temporary_password: false })
+        .eq('id', user.id)
+
+    if (profileError) {
+        console.error('Error updating profile:', profileError)
+        return { error: 'Failed to update profile' }
+    }
+
+    // 3. Mark invitation as accepted (redundant but safe)
     const { error: staffError } = await supabase
         .from('shop_staff')
         .update({ accepted_at: new Date().toISOString() })
@@ -27,7 +38,7 @@ export async function completeSetup(password: string, shopId: string) {
 
     if (staffError) {
         console.error('Error accepting invitation:', staffError)
-        return { error: 'Failed to accept invitation' }
+        // We don't return error here because password and profile were already updated
     }
 
     revalidatePath('/dashboard')

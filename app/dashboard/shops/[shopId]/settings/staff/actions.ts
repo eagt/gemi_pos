@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
+import { StaffRole } from '@/lib/types/database.types'
 
 // GET STAFF LIST — used by staff/page.tsx
 export async function getStaffList(shopId: string) {
@@ -37,6 +38,9 @@ export async function inviteStaff(
     inviterStaffId?: string,
     businessType: 'quick_checkout' | 'table_order' = 'table_order'
 ) {
+    if (!name || !email || !role) {
+        return { error: 'All fields (Name, Email, and Role) are mandatory' }
+    }
     const client = createServiceRoleClient()
 
     // ... (rest of user creation logic) ... (Use a view_file range to skip unchanged parts if possible, but simpler to just replace logic block)
@@ -129,7 +133,7 @@ export async function inviteStaff(
     }
 
     // Determine roles for DB insertion
-    let rRole = 'waiter' // Default restaurant role
+    let rRole = null
     let qcRole = null
 
     if (businessType === 'quick_checkout') {
@@ -144,8 +148,8 @@ export async function inviteStaff(
             shop_id: shopId,
             user_id: userId,
             name: name.trim(),
-            restaurant_role: rRole,
-            quick_checkout_role: qcRole,
+            restaurant_role: businessType === 'table_order' ? role as StaffRole : null,
+            quick_checkout_role: businessType === 'quick_checkout' ? role : null,
             accepted_at: null,
             is_active: true,
             invited_by: inviterId
@@ -203,12 +207,18 @@ export async function updateStaffRole(
         return { error: 'Permission denied' }
     }
 
-    // Update the role based on business type
+    // Update the role based on business type and clear the other
     let updatePayload = {}
     if (businessType === 'quick_checkout') {
-        updatePayload = { quick_checkout_role: newRole }
+        updatePayload = {
+            quick_checkout_role: newRole,
+            restaurant_role: null // Clear other
+        }
     } else {
-        updatePayload = { restaurant_role: newRole }
+        updatePayload = {
+            restaurant_role: newRole as StaffRole,
+            quick_checkout_role: null // Clear other
+        }
     }
 
     const { error } = await supabase
