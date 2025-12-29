@@ -16,11 +16,11 @@ function ChangePasswordForm() {
     const [loading, setLoading] = useState(false)
     const router = useRouter()
     const searchParams = useSearchParams()
-    const redirectTo = searchParams.get('redirect_to') || '/dashboard'
+    const redirectTo = searchParams.get('returnUrl') || searchParams.get('redirect_to') || '/dashboard'
 
-    // Extract shopId from redirect_to if possible
-    // Format: /dashboard/shops/[shopId]...
-    const match = redirectTo.match(/\/dashboard\/shops\/([^\/]+)/)
+    // Extract shopId from redirectTo if possible
+    // Format: /dashboard/shops/[shopId]... or /staff-login/[shopId]
+    const match = redirectTo.match(/\/(?:dashboard\/shops|staff-login)\/([^\/]+)/)
     const shopId = match ? match[1] : null
 
     const handleSubmit = async (e: React.FormEvent) => {

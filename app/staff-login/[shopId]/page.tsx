@@ -22,12 +22,19 @@ export default async function StaffLoginPage({ params, searchParams }: StaffLogi
         const serviceClient = createServiceRoleClient()
         const { data: staffRecord } = await serviceClient
             .from('shop_staff')
-            .select('role')
+            .select('restaurant_role, quick_checkout_role')
             .eq('shop_id', shopId)
             .eq('user_id', user.id)
             .single()
 
-        isManager = staffRecord?.role === 'manager'
+        isManager = staffRecord?.restaurant_role === 'manager' || staffRecord?.quick_checkout_role === 'manager'
+    }
+
+    // Proactive check: If user ALREADY has a staff session for this shop, redirect to POS
+    const { fetchActiveSession } = await import('@/app/dashboard/actions')
+    const session = await fetchActiveSession(shopId)
+    if (session) {
+        redirect(returnUrl ? decodeURIComponent(returnUrl) : `/dashboard/shops/${shopId}/pos`)
     }
 
     // Fetch data on the server (no loading spinner!)

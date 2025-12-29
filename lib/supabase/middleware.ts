@@ -47,6 +47,23 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url)
     }
 
+    // MANDATORY SECURITY CHECK: Temporary Password Guard
+    if (user && !request.nextUrl.pathname.startsWith('/change-temporary-password')) {
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('has_temporary_password')
+            .eq('id', user.id)
+            .single()
+
+        if (profile?.has_temporary_password) {
+            const url = request.nextUrl.clone()
+            url.pathname = '/change-temporary-password'
+            // Keep track of where they were going
+            url.searchParams.set('returnUrl', request.nextUrl.pathname)
+            return NextResponse.redirect(url)
+        }
+    }
+
     // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
     // creating a new response object with NextResponse.next() make sure to:
     // 1. Pass the request in it, like so:
